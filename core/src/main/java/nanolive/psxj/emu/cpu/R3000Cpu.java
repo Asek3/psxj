@@ -391,7 +391,9 @@ public final class R3000Cpu {
                     case 0x32 -> {
                         ensureCop2Usable(currentPc, branchDelay);
                         int target = rt(instruction);
-                        writeGteData(target, read32Aligned(getRegister(rs(instruction)) + imm16s(instruction)));
+                        long issueCycle = currentCpuCycle();
+                        int value = read32Aligned(getRegister(rs(instruction)) + imm16s(instruction));
+                        writeGteDataFromMemory(target, value, issueCycle, currentCpuCycle());
                     }
                     case 0x33 -> loadMissingCoprocessor(instruction, currentPc, branchDelay, 3);
                     case 0x38 -> storeMissingCoprocessor(instruction, currentPc, branchDelay, 0);
@@ -2058,8 +2060,20 @@ public final class R3000Cpu {
     }
 
     private void writeGteData(int register, int value) {
+        writeGteData(register, value, currentCpuCycle());
+    }
+
+    private void writeGteDataFromMemory(int register, int value,
+                                        long instructionIssueCycle, long memoryCompletionCycle) {
+        long effectiveIssueCycle = Math.max(
+            instructionIssueCycle,
+            memoryCompletionCycle - GTE_REGISTER_WRITE_DELAY_CYCLES
+        );
+        writeGteData(register, value, effectiveIssueCycle);
+    }
+
+    private void writeGteData(int register, int value, long issueCycle) {
         int index = register & 31;
-        long issueCycle = currentCpuCycle();
         if (index == 28) {
             // IRGB writes its components over several clocks.
             queueGteDataComponentWrite(11, ((value >>> 10) & 0x1F) << 7,

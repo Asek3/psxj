@@ -1088,13 +1088,13 @@ final class R3000CpuTest {
     }
 
     @Test
-    void lwc2ToIrgbStartsItsGteWriteDelayAfterTheMemoryReadCompletes() {
+    void lwc2OverlapsItsGteWriteDelayWithTheMemoryRead() {
         Bus bus = new Bus();
         int[] instructions = {
             0x2408_0100, // addiu t0, zero, 0x100
             0xC91C_0000, // lwc2 IRGB, 0(t0)
-            0x0000_0000, // second write-path clock: IR3 becomes visible
-            0x0000_0000, // third write-path clock: IR1/IR2 become visible
+            0x0000_0000, // RAM latency has already consumed the write delay
+            0x0000_0000,
             0x0000_0000,
             0x4809_4800, // mfc2 t1, IR1
             0x0000_0000  // load-delay nop
@@ -1111,10 +1111,10 @@ final class R3000CpuTest {
 
         Assertions.assertEquals(1, cpu.step());
         Assertions.assertTrue(cpu.step() > 1);
-        Assertions.assertEquals(0, cpu.gte().readData(9));
+        Assertions.assertEquals(0x80, cpu.gte().readData(9));
 
         Assertions.assertEquals(1, cpu.step());
-        Assertions.assertEquals(0, cpu.gte().readData(9));
+        Assertions.assertEquals(0x80, cpu.gte().readData(9));
         Assertions.assertEquals(0, cpu.gte().readData(11));
 
         Assertions.assertEquals(1, cpu.step());
@@ -1127,6 +1127,68 @@ final class R3000CpuTest {
         Assertions.assertEquals(1, cpu.step());
 
         Assertions.assertEquals(0x80, cpu.register(9));
+    }
+
+    @Test
+    void ramReadStallMakesLwc2ValueVisibleToFollowingGteCommand() {
+        Bus bus = new Bus();
+        int[] instructions = {
+            0x2408_0100, // addiu t0, zero, 0x100
+            0xC909_0000, // lwc2 IR1, 0(t0)
+            0x4A00_0428, // SQR, lm=1, sf=0
+            0x0000_0000,
+            0x0000_0000,
+            0x0000_0000,
+            0x0000_0000,
+            0x4809_C800, // mfc2 t1, MAC1
+            0x0000_0000  // load-delay nop
+        };
+        for (int i = 0; i < instructions.length; i++) {
+            bus.write32(i * 4, instructions[i]);
+        }
+        bus.write32(0x0000_0100, 7);
+        bus.fetchInstruction(0x0000_0000, false);
+        bus.fetchInstruction(0x0000_0010, false);
+        var cpu = new R3000Cpu(bus);
+        cpu.reset(0x0000_0000);
+        cpu.cop0().writeRegister(12, cpu.cop0().readRegister(12) | (1 << 30));
+
+        for (int ignored : instructions) {
+            cpu.step();
+        }
+
+        Assertions.assertEquals(49, cpu.register(9));
+    }
+
+    @Test
+    void fastLwc2AccessKeepsTheUnconsumedGteWriteDelay() {
+        Bus bus = new Bus();
+        int[] instructions = {
+            0x3C08_1F80, // lui t0, 0x1f80 (scratchpad)
+            0xC909_0000, // lwc2 IR1, 0(t0)
+            0x4A00_0428, // SQR, lm=1, sf=0
+            0x0000_0000,
+            0x0000_0000,
+            0x0000_0000,
+            0x0000_0000,
+            0x4809_C800, // mfc2 t1, MAC1
+            0x0000_0000  // load-delay nop
+        };
+        for (int i = 0; i < instructions.length; i++) {
+            bus.write32(i * 4, instructions[i]);
+        }
+        bus.write32(0x1F80_0000, 7);
+        bus.fetchInstruction(0x0000_0000, false);
+        bus.fetchInstruction(0x0000_0010, false);
+        var cpu = new R3000Cpu(bus);
+        cpu.reset(0x0000_0000);
+        cpu.cop0().writeRegister(12, cpu.cop0().readRegister(12) | (1 << 30));
+
+        for (int ignored : instructions) {
+            cpu.step();
+        }
+
+        Assertions.assertEquals(0, cpu.register(9));
     }
 
     @Test
