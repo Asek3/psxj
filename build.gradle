@@ -1,0 +1,65 @@
+plugins {
+    id 'base'
+    id 'com.gradleup.shadow' version '8.3.11' apply false
+}
+
+group = 'nanolive'
+version = '0.1.0'
+
+ext {
+    lwjglVersion = '3.4.2'
+    flatlafVersion = '3.7.2'
+    gsonVersion = '2.14.0'
+    jnaVersion = '5.19.1'
+    slf4jVersion = '2.0.18'
+    junitVersion = '5.14.4'
+}
+
+allprojects {
+    group = rootProject.group
+    version = rootProject.version
+
+    repositories {
+        mavenCentral()
+    }
+}
+
+tasks.register('test') {
+    group = 'verification'
+    description = 'Runs the emulator core and hardware tests.'
+    dependsOn ':core:test'
+}
+
+tasks.register('shadowJar') {
+    group = 'build'
+    description = 'Builds the platform-specific runnable application JAR.'
+    dependsOn ':gui:shadowJar'
+}
+
+tasks.register('run') {
+    group = 'application'
+    description = 'Runs PSXJ with the selected JVM profile (balanced by default).'
+    dependsOn ':gui:run'
+}
+
+tasks.register('jmh') {
+    group = 'benchmark'
+    description = 'Runs the repeatable emulator-core microbenchmarks.'
+    dependsOn ':core:jmh'
+}
+
+tasks.register('printVersion') {
+    doLast {
+        println(project.version)
+    }
+}
+
+tasks.named('assemble') {
+    dependsOn ':core:jar', ':gui:shadowJar'
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('test')
+}
+
+defaultTasks 'run'

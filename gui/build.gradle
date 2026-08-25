@@ -1,0 +1,219 @@
+plugins {
+    id 'application'
+    id 'com.gradleup.shadow'
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+    withSourcesJar()
+}
+
+def osName = providers.systemProperty('os.name').getOrElse('').toLowerCase(Locale.ROOT)
+def osArch = providers.systemProperty('os.arch').getOrElse('').toLowerCase(Locale.ROOT)
+def hostNativeTarget = osName.contains('win')
+    ? (osArch.contains('aarch64') || osArch.contains('arm64') ? 'windows-arm64'
+        : osArch.contains('86') && !osArch.contains('64') ? 'windows-x86' : 'windows-x64')
+    : osName.contains('mac')
+        ? (osArch.contains('aarch64') || osArch.contains('arm64') ? 'macos-arm64' : 'macos-x64')
+        : (osArch.contains('aarch64') || osArch.contains('arm64') ? 'linux-arm64'
+            : osArch.startsWith('arm') ? 'linux-arm32' : 'linux-x64')
+def nativeTarget = providers.gradleProperty('nativeTarget').getOrElse(hostNativeTarget)
+def nativeClassifiers = [
+    'windows-x64': 'natives-windows',
+    'windows-x86': 'natives-windows-x86',
+    'windows-arm64': 'natives-windows-arm64',
+    'linux-x64': 'natives-linux',
+    'linux-arm32': 'natives-linux-arm32',
+    'linux-arm64': 'natives-linux-arm64',
+    'macos-x64': 'natives-macos',
+    'macos-arm64': 'natives-macos-arm64'
+]
+if (!nativeClassifiers.containsKey(nativeTarget)) {
+    throw new GradleException("Unsupported nativeTarget '${nativeTarget}'. Expected one of: ${nativeClassifiers.keySet().join(', ')}")
+}
+
+dependencies {
+    implementation project(':core')
+    implementation platform("org.lwjgl:lwjgl-bom:${rootProject.lwjglVersion}")
+    implementation 'org.lwjgl:lwjgl'
+    implementation 'org.lwjgl:lwjgl-openal'
+    implementation 'org.lwjgl:lwjgl-sdl'
+    implementation "com.formdev:flatlaf:${rootProject.flatlafVersion}"
+    implementation "com.google.code.gson:gson:${rootProject.gsonVersion}"
+    implementation "net.java.dev.jna:jna:${rootProject.jnaVersion}"
+    runtimeOnly "org.slf4j:slf4j-simple:${rootProject.slf4jVersion}"
+
+    def nativeClassifier = nativeClassifiers[nativeTarget]
+    ['lwjgl', 'lwjgl-openal', 'lwjgl-sdl'].each { module ->
+        runtimeOnly "org.lwjgl:${module}::${nativeClassifier}"
+    }
+}
+
+def commonApplicationJvmArgs = [
+    '-Dfile.encoding=UTF-8',
+    '-Dsun.java2d.uiScale.enabled=true',
+    '-Dorg.slf4j.simpleLogger.showDateTime=true',
+    '-Dorg.slf4j.simpleLogger.defaultLogLevel=info',
+    '-Dorg.slf4j.simpleLogger.showThreadName=true'
+]
+def runProfiles = [
+    balanced: [
+        '-Xms768m',
+        '-Xmx2g',
+        '-XX:+UseG1GC',
+        '-XX:MaxGCPauseMillis=10',
+        '-XX:+ParallelRefProcEnabled'
+    ],
+    throughput: [
+        '-Xms1536m',
+        '-Xmx1536m',
+        '-XX:+UseParallelGC',
+        '-XX:+AlwaysPreTouch'
+    ],
+    'low-pause': [
+        '-Xms1536m',
+        '-Xmx1536m',
+        '-XX:+UseZGC',
+        '-XX:+ZGenerational',
+        '-XX:+AlwaysPreTouch'
+    ]
+]
+def runProfile = providers.gradleProperty('runProfile').getOrElse('balanced')
+if (!runProfiles.containsKey(runProfile)) {
+    throw new GradleException("Unknown runProfile '${runProfile}'. Expected one of: ${runProfiles.keySet().join(', ')}")
+}
+
+application {
+    mainClass = 'nanolive.psxj.Main'
+    applicationDefaultJvmArgs = runProfiles[runProfile] + commonApplicationJvmArgs
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 21
+    options.incremental = true
+    options.compilerArgs.addAll(['-Xlint:deprecation', '-Xlint:unchecked'])
+}
+
+tasks.named('test') {
+    enabled = false
+}
+
+def raNativeBuildDir = rootProject.layout.buildDirectory.dir('native/retroachievements-gradle')
+def suppliedRaNative = providers.gradleProperty('raNativeLibrary')
+def standardWindowsCmake = file('C:/Program Files/CMake/bin/cmake.exe')
+def cmakeExecutable = providers.gradleProperty('cmakeExecutable').getOrElse(
+    standardWindowsCmake.isFile() ? standardWindowsCmake.absolutePath : 'cmake')
+def raConfigureArguments = [
+    '-S', rootProject.file('native/retroachievements').absolutePath,
+    '-B', raNativeBuildDir.get().asFile.absolutePath,
+    '-DCMAKE_BUILD_TYPE=Release'
+]
+if (osName.contains('win') && file('C:/MinGW/bin/gcc.exe').isFile()
+    && file('C:/MinGW/bin/mingw32-make.exe').isFile()) {
+    raConfigureArguments.addAll([
+        '-G', 'MinGW Makefiles',
+        '-DCMAKE_C_COMPILER=C:/MinGW/bin/gcc.exe'
+    ])
+}
+
+tasks.register('configureRetroAchievementsNative', Exec) {
+    group = 'build'
+    description = 'Configures the pinned rcheevos native runtime.'
+    inputs.files(rootProject.fileTree('native/retroachievements'))
+    outputs.file(raNativeBuildDir.map { it.file('CMakeCache.txt') })
+    commandLine([cmakeExecutable] + raConfigureArguments)
+}
+
+tasks.register('buildRetroAchievementsNative', Exec) {
+    group = 'build'
+    description = 'Builds the RetroAchievements native bridge.'
+    dependsOn tasks.named('configureRetroAchievementsNative')
+    inputs.files(rootProject.fileTree('native/retroachievements'))
+    outputs.files(
+        raNativeBuildDir.map { it.file('psxj_ra.dll') },
+        raNativeBuildDir.map { it.file('libpsxj_ra.so') },
+        raNativeBuildDir.map { it.file('libpsxj_ra.dylib') }
+    )
+    commandLine cmakeExecutable, '--build', raNativeBuildDir.get().asFile.absolutePath,
+        '--config', 'Release', '--parallel'
+}
+
+tasks.named('run', JavaExec) {
+    dependsOn tasks.named('buildRetroAchievementsNative')
+    systemProperty 'jna.library.path', raNativeBuildDir.get().asFile.absolutePath
+}
+
+tasks.named('jar', Jar) {
+    archiveClassifier = 'plain'
+    manifest {
+        attributes(
+            'Main-Class': application.mainClass,
+            'Implementation-Title': 'PSXJ',
+            'Implementation-Version': project.version
+        )
+    }
+}
+
+tasks.named('shadowJar', com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar) {
+    if (!suppliedRaNative.isPresent() && nativeTarget == hostNativeTarget) {
+        dependsOn tasks.named('buildRetroAchievementsNative')
+    }
+    archiveBaseName = 'psxj'
+    archiveClassifier = nativeTarget
+    archiveVersion = project.version.toString()
+    destinationDirectory = rootProject.layout.buildDirectory.dir('libs')
+    mergeServiceFiles()
+    exclude 'module-info.class'
+    exclude 'META-INF/versions/**/module-info.class'
+    from(rootProject.file('LICENSE')) {
+        into 'META-INF'
+        rename { 'LICENSE-PSXJ.md' }
+    }
+    from(rootProject.file('THIRD_PARTY_NOTICES.md')) {
+        into 'META-INF'
+    }
+    from(rootProject.file('THIRD_PARTY_LICENSES.md')) {
+        into 'META-INF'
+    }
+    def jnaResourceFolder = [
+        'windows-x64': 'win32-x86-64',
+        'windows-x86': 'win32-x86',
+        'windows-arm64': 'win32-aarch64',
+        'linux-x64': 'linux-x86-64',
+        'linux-arm32': 'linux-arm',
+        'linux-arm64': 'linux-aarch64',
+        'macos-x64': 'darwin-x86-64',
+        'macos-arm64': 'darwin-aarch64'
+    ][nativeTarget]
+    from(suppliedRaNative.isPresent()
+        ? file(suppliedRaNative.get()).parentFile
+        : raNativeBuildDir) {
+        include 'psxj_ra.dll', 'libpsxj_ra.so', 'libpsxj_ra.dylib'
+        into jnaResourceFolder
+    }
+    doFirst {
+        if (nativeTarget != hostNativeTarget && !suppliedRaNative.isPresent()) {
+            throw new GradleException(
+                "Cross-packaging RetroAchievements requires -PraNativeLibrary=<target shared library>")
+        }
+        if (suppliedRaNative.isPresent() && !file(suppliedRaNative.get()).isFile()) {
+            throw new GradleException("raNativeLibrary does not exist: ${suppliedRaNative.get()}")
+        }
+    }
+    manifest {
+        attributes(
+            'Main-Class': application.mainClass,
+            'Implementation-Title': 'PSXJ',
+            'Implementation-Version': project.version,
+            'Multi-Release': 'true'
+        )
+    }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+tasks.named('build') {
+    dependsOn tasks.named('shadowJar')
+}

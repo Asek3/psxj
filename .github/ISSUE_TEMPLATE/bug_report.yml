@@ -1,0 +1,65 @@
+name: Bug report
+description: Report a reproducible emulation or frontend problem
+title: "[Bug] "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not upload BIOS files, game images, save data containing personal information, or proprietary SDK material.
+
+  - type: input
+    id: version
+    attributes:
+      label: PSXJ version
+      placeholder: 0.1.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - CPU / bus / timing
+        - GPU / rendering
+        - SPU / audio
+        - CD-ROM / disc image
+        - Controller / memory card
+        - Save state
+        - GUI / configuration
+        - RetroAchievements
+        - Build / packaging
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Include the expected behavior and the smallest reliable reproduction.
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: Windows 11 x64, Temurin Java 21, Xbox controller, OpenAL
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      render: text
+
+  - type: checkboxes
+    id: legal
+    attributes:
+      label: Data safety
+      options:
+        - label: I have not attached copyrighted BIOS, game, or SDK files.
+          required: true

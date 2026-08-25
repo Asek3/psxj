@@ -1,0 +1,139 @@
+plugins {
+    id 'java-library'
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+    withSourcesJar()
+}
+
+sourceSets {
+    jmh {
+        compileClasspath += sourceSets.main.output
+        runtimeClasspath += sourceSets.main.output
+    }
+}
+
+configurations {
+    jmhImplementation.extendsFrom implementation
+    jmhRuntimeOnly.extendsFrom runtimeOnly
+}
+
+dependencies {
+    implementation "com.google.code.gson:gson:${rootProject.gsonVersion}"
+    api "org.slf4j:slf4j-api:${rootProject.slf4jVersion}"
+
+    testImplementation platform("org.junit:junit-bom:${rootProject.junitVersion}")
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    jmhImplementation 'org.openjdk.jmh:jmh-core:1.37'
+    jmhAnnotationProcessor 'org.openjdk.jmh:jmh-generator-annprocess:1.37'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 21
+    options.incremental = true
+    options.compilerArgs.addAll(['-Xlint:deprecation', '-Xlint:unchecked'])
+}
+
+tasks.withType(Test).configureEach {
+    useJUnitPlatform()
+}
+
+tasks.register('jmh', JavaExec) {
+    group = 'benchmark'
+    description = 'Runs the repeatable emulator-core microbenchmarks.'
+    dependsOn tasks.named('jmhClasses')
+    classpath = sourceSets.jmh.runtimeClasspath
+    mainClass = 'org.openjdk.jmh.Main'
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+    def configuredArgs = providers.gradleProperty('jmhArgs').getOrElse('')
+    args = configuredArgs.isBlank() ? [] : configuredArgs.split('\\s+') as List
+}
+
+tasks.register('profileState', JavaExec) {
+    group = 'benchmark'
+    description = 'Profiles a supplied retail save state headlessly (local diagnostics only).'
+    dependsOn tasks.named('jmhClasses')
+    classpath = sourceSets.jmh.runtimeClasspath
+    mainClass = 'nanolive.psxj.benchmark.StateProfileRunner'
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+    def bios = providers.gradleProperty('profileBios').getOrElse('')
+    def game = providers.gradleProperty('profileGame').getOrElse('')
+    def state = providers.gradleProperty('profileState').getOrElse('')
+    def warmup = providers.gradleProperty('profileWarmupSeconds').getOrElse('5')
+    def seconds = providers.gradleProperty('profileSeconds').getOrElse('15')
+    def warmupCycles = providers.gradleProperty('profileWarmupCycles').getOrElse('')
+    def cycles = providers.gradleProperty('profileCycles').getOrElse('')
+    def sampleCycles = providers.gradleProperty('profileSampleCycles').getOrElse('')
+    def recording = providers.gradleProperty('profileRecording').getOrElse('')
+    def exact = providers.gradleProperty('profileExact').getOrElse('false')
+    def stalls = providers.gradleProperty('profileStalls').getOrElse('false')
+    def reloadAfterWarmup = providers.gradleProperty('profileReloadAfterWarmup').getOrElse('false')
+    def captureFrames = providers.gradleProperty('profileCaptureFrames').getOrElse('false')
+    def machineState = providers.gradleProperty('profileMachineState').getOrElse('false')
+    def stateHash = providers.gradleProperty('profileStateHash').getOrElse('false')
+    def stateOutput = providers.gradleProperty('profileStateOutput').getOrElse('')
+    def buttons = providers.gradleProperty('profileButtons').getOrElse('')
+    args bios, game, state, warmup, seconds
+    if (!warmupCycles.isBlank() && !cycles.isBlank()) {
+        args warmupCycles, cycles
+        if (!sampleCycles.isBlank()) {
+            args sampleCycles
+        }
+    }
+    systemProperty 'psxj.profile.recording', recording
+    systemProperty 'psxj.profile.exact', exact
+    systemProperty 'psxj.profile.stalls', stalls
+    systemProperty 'psxj.profile.reloadAfterWarmup', reloadAfterWarmup
+    systemProperty 'psxj.profile.captureFrames', captureFrames
+    systemProperty 'psxj.profile.machineState', machineState
+    systemProperty 'psxj.profile.stateHash', stateHash
+    systemProperty 'psxj.profile.stateOutput', stateOutput
+    systemProperty 'psxj.profile.buttons', buttons
+    if (bios.isBlank() || game.isBlank() || state.isBlank()) {
+        enabled = false
+    }
+}
+
+tasks.register('runConformance', JavaExec) {
+    group = 'verification'
+    description = 'Runs a PS-X EXE headlessly and captures its final frame.'
+    dependsOn tasks.named('jmhClasses')
+    classpath = sourceSets.jmh.runtimeClasspath
+    mainClass = 'nanolive.psxj.benchmark.ConformanceRunner'
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+    def bios = providers.gradleProperty('conformanceBios').getOrElse('')
+    def executable = providers.gradleProperty('conformanceExe').getOrElse('')
+    def seconds = providers.gradleProperty('conformanceSeconds').getOrElse('10')
+    def output = providers.gradleProperty('conformanceOutput')
+        .getOrElse(layout.buildDirectory.file('diagnostics/conformance.png').get().asFile.absolutePath)
+    def input = providers.gradleProperty('conformanceInput').getOrElse('')
+    args bios, executable, seconds, output
+    if (!input.isBlank()) {
+        args input
+    }
+    if (bios.isBlank() || executable.isBlank()) {
+        enabled = false
+    }
+}
+
+tasks.named('jar', Jar) {
+    archiveBaseName = 'psxj-core'
+    manifest {
+        attributes(
+            'Implementation-Title': 'PSXJ Core',
+            'Implementation-Version': project.version
+        )
+    }
+}
