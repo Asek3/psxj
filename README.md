@@ -6,6 +6,19 @@ The current hardware target is an NTSC-U SCPH-5501 (PU-18). The emulator uses a 
 
 PSXJ is not affiliated with Sony. No BIOS, games, SDK files, keys, or other copyrighted console data are included. You need your own legally obtained BIOS and disc images.
 
+## Screenshots
+
+<table>
+  <tr>
+    <td><img src="screenshots/crash_bandicoot.png" alt="Crash Bandicoot gameplay"></td>
+    <td><img src="screenshots/resident_evil.png" alt="Resident Evil gameplay"></td>
+  </tr>
+  <tr>
+    <td><img src="screenshots/silent_hill.png" alt="Silent Hill gameplay"></td>
+    <td><img src="screenshots/spider_man.png" alt="Spider-Man gameplay"></td>
+  </tr>
+</table>
+
 ## What is implemented
 
 - R3000A interpreter, COP0, instruction cache, load/branch delays and exceptions
