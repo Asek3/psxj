@@ -14,6 +14,8 @@ import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GridBagLayout;
+import java.awt.LayoutManager;
+import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import javax.swing.BorderFactory;
@@ -24,6 +26,8 @@ import javax.swing.JLabel;
 import javax.swing.ImageIcon;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.Scrollable;
+import javax.swing.SwingConstants;
 import javax.swing.JTextArea;
 
 public final class GameDetailsPanel extends JPanel {
@@ -118,7 +122,7 @@ public final class GameDetailsPanel extends JPanel {
         center.add(pathCard);
         center.add(Box.createVerticalGlue());
 
-        JPanel content = new JPanel(new BorderLayout(0, 12));
+        JPanel content = new WidthTrackingPanel(new BorderLayout(0, 12));
         content.setOpaque(false);
         content.add(top, BorderLayout.NORTH);
         content.add(center, BorderLayout.CENTER);
@@ -263,5 +267,47 @@ public final class GameDetailsPanel extends JPanel {
 
     private Color primaryTextColor() {
         return ThemeManager.isDarkTheme() ? new Color(232, 236, 244) : new Color(38, 44, 56);
+    }
+
+    private static final class WidthTrackingPanel extends JPanel implements Scrollable {
+
+        private WidthTrackingPanel(LayoutManager layout) {
+            super(layout);
+        }
+
+        @Override
+        public Dimension getPreferredScrollableViewportSize() {
+            return getPreferredSize();
+        }
+
+        @Override
+        public int getScrollableUnitIncrement(
+            Rectangle visibleRect,
+            int orientation,
+            int direction
+        ) {
+            return 16;
+        }
+
+        @Override
+        public int getScrollableBlockIncrement(
+            Rectangle visibleRect,
+            int orientation,
+            int direction
+        ) {
+            return orientation == SwingConstants.VERTICAL
+                ? Math.max(16, visibleRect.height - 16)
+                : Math.max(16, visibleRect.width - 16);
+        }
+
+        @Override
+        public boolean getScrollableTracksViewportWidth() {
+            return true;
+        }
+
+        @Override
+        public boolean getScrollableTracksViewportHeight() {
+            return false;
+        }
     }
 }
