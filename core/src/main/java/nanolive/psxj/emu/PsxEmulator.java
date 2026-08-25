@@ -44,7 +44,7 @@ import java.util.function.IntConsumer;
 public final class PsxEmulator implements AutoCloseable {
 
     public static final int ACHIEVEMENT_MEMORY_SIZE = Bus.RAM_SIZE + Bus.SCRATCHPAD_SIZE;
-    private static final Gson STATE_GSON = new GsonBuilder().setPrettyPrinting().create();
+    private static final Gson STATE_GSON = createStateGson();
     private static final int SAVE_STATE_VERSION = 1;
     private static final int MAX_SYSTEM_CYCLE_QUANTUM = 256;
     private static final int STALL_PROGRESS_MASK = 0x0FFF;
@@ -962,6 +962,12 @@ public final class PsxEmulator implements AutoCloseable {
         }
     }
 
+    private static Gson createStateGson() {
+        Gson gson = new GsonBuilder().setPrettyPrinting().create();
+        gson.getAdapter(SaveStateDto.class);
+        return gson;
+    }
+
     private int[] copyCop0() {
         return cop0.copyRawRegisters();
     }
@@ -1521,28 +1527,4 @@ public final class PsxEmulator implements AutoCloseable {
         }
     }
 
-    private static final class SaveStateDto {
-        int version;
-        R3000Cpu.State cpu;
-        int[] cop0;
-        int[] gteData;
-        int[] gteControl;
-        String ram;
-        String scratchpad;
-        Bus.State bus;
-        String vram;
-        Gpu.State gpu;
-        String spuRam;
-        Spu.State spu;
-        InterruptController.State interrupts;
-        DmaController.State dma;
-        TimerController.State timers;
-        SioController.State sio;
-        Sio1Controller.State sio1;
-        Mdec.State mdec;
-        CdRomController.State cdrom;
-        CycleScheduler.State scheduler;
-        String memCard1;
-        String memCard2;
-    }
 }
