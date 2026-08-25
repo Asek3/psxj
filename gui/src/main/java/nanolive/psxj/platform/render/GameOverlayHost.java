@@ -16,6 +16,8 @@ public interface GameOverlayHost {
 
     void setAchievements(List<AchievementInfo> achievements);
 
+    void setRetroAchievementsEnabled(boolean enabled);
+
     void updateAchievementBadge(int id, BufferedImage badge);
 
     void setOverlayOpenListener(Consumer<Boolean> listener);

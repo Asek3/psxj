@@ -163,6 +163,7 @@ public final class RetroAchievementsService implements AutoCloseable {
         emulator = target;
         overlay = targetOverlay;
         if (targetOverlay != null) {
+            targetOverlay.setRetroAchievementsEnabled(config.enabled());
             targetOverlay.setAchievements(achievements);
         }
         pendingGame = gamePath;
@@ -183,6 +184,10 @@ public final class RetroAchievementsService implements AutoCloseable {
     }
 
     public void configurationChanged() {
+        GameOverlayHost currentOverlay = overlay;
+        if (currentOverlay != null) {
+            currentOverlay.setRetroAchievementsEnabled(config.enabled());
+        }
         if (config.enabled()) {
             activateCurrentGame();
         } else {

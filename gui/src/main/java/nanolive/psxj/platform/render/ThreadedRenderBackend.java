@@ -158,6 +158,12 @@ public final class ThreadedRenderBackend implements RenderBackend, GameOverlayHo
     }
 
     @Override
+    public void setRetroAchievementsEnabled(boolean enabled) {
+        gameOverlay.setRetroAchievementsEnabled(enabled);
+        requestOverlayRedraw();
+    }
+
+    @Override
     public void updateAchievementBadge(int id, java.awt.image.BufferedImage badge) {
         gameOverlay.updateAchievementBadge(id, badge);
         requestOverlayRedraw();

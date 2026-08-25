@@ -42,6 +42,7 @@ final class GameOverlay {
     private volatile IntConsumer loadAction = ignored -> { };
     private volatile Consumer<Boolean> openListener = ignored -> { };
     private volatile List<GameOverlayHost.AchievementInfo> achievements = List.of();
+    private volatile boolean retroAchievementsEnabled = true;
     private volatile int achievementPage;
     private volatile String toastMessage;
     private volatile long toastExpiresAt;
@@ -77,6 +78,12 @@ final class GameOverlay {
 
     void setAchievements(List<GameOverlayHost.AchievementInfo> values) {
         achievements = values == null ? List.of() : List.copyOf(values);
+        achievementPage = 0;
+        requestRedraw();
+    }
+
+    void setRetroAchievementsEnabled(boolean enabled) {
+        retroAchievementsEnabled = enabled;
         achievementPage = 0;
         requestRedraw();
     }
@@ -470,7 +477,10 @@ final class GameOverlay {
     private void drawAchievementList(Graphics2D graphics, ArrayList<HitBox> boxes,
                                      int width, int height, int x, int y, int areaWidth,
                                      int areaHeight, int padding, float scale) {
-        List<GameOverlayHost.AchievementInfo> items = achievements;
+        boolean featureEnabled = retroAchievementsEnabled;
+        List<GameOverlayHost.AchievementInfo> items = featureEnabled
+            ? achievements
+            : List.of();
         long unlocked = items.stream().filter(GameOverlayHost.AchievementInfo::unlocked).count();
         int titleSize = Math.clamp(Math.round(24 * scale), 14, 38);
         graphics.setFont(new Font(Font.SANS_SERIF, Font.BOLD, titleSize));
@@ -535,7 +545,10 @@ final class GameOverlay {
         }
         if (items.isEmpty()) {
             graphics.setColor(new Color(155, 167, 188));
-            graphics.drawString(I18n.tr("overlay.achievementsUnavailable"), x + padding, listTop + 24);
+            String messageKey = featureEnabled
+                ? "overlay.achievementsUnavailable"
+                : "overlay.retroAchievementsDisabled";
+            graphics.drawString(I18n.tr(messageKey), x + padding, listTop + 24);
         }
 
         int buttonWidth = Math.max(70, Math.round(92 * scale));

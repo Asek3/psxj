@@ -433,6 +433,10 @@ public final class MainFrame extends JFrame implements GameLibraryListener {
         if (current != null) {
             current.setOverclockPercent(config.emulation().overclockPercent());
         }
+        GameOverlayHost overlay = gameOverlayHost;
+        if (overlay != null) {
+            overlay.setRetroAchievementsEnabled(config.retroAchievements().enabled());
+        }
     }
 
     private void requestClose() {
@@ -653,6 +657,7 @@ public final class MainFrame extends JFrame implements GameLibraryListener {
         if (!(renderBackend instanceof GameOverlayHost overlay)) {
             return null;
         }
+        overlay.setRetroAchievementsEnabled(config.retroAchievements().enabled());
         if (game != null) {
             overlay.configureSaveStateOverlay(
                 () -> occupiedSaveStateSlots(game.libraryId()),
