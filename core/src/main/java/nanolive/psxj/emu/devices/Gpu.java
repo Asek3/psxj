@@ -45,7 +45,7 @@ public final class Gpu implements DmaPort {
     private final short[] textureCache =
         new short[TEXTURE_CACHE_ENTRY_COUNT * TEXTURE_CACHE_WORDS_PER_ENTRY];
     private final int[] textureCacheTags = new int[TEXTURE_CACHE_ENTRY_COUNT];
-    private final int[] gp0IngressFifo = new int[GP0_FIFO_CAPACITY_WORDS];
+    private int[] gp0IngressFifo = new int[GP0_FIFO_CAPACITY_WORDS];
     private int gp0IngressHead;
     private int gp0IngressSize;
     private int[] commandFifo = new int[16];
@@ -199,11 +199,9 @@ public final class Gpu implements DmaPort {
             executeFifoFreeCommand(value, opcode);
             return;
         }
-        if (gp0IngressSize >= GP0_FIFO_CAPACITY_WORDS) {
-            return;
-        }
+        ensureGp0IngressCapacity();
         totalGp0Words++;
-        gp0IngressFifo[(gp0IngressHead + gp0IngressSize) & (GP0_FIFO_CAPACITY_WORDS - 1)] = value;
+        gp0IngressFifo[(gp0IngressHead + gp0IngressSize) & (gp0IngressFifo.length - 1)] = value;
         gp0IngressSize++;
         updateGp0FifoCount();
         processGp0Ingress();
@@ -236,7 +234,7 @@ public final class Gpu implements DmaPort {
         }
         while (gp0IngressSize > 0) {
             int value = gp0IngressFifo[gp0IngressHead];
-            gp0IngressHead = (gp0IngressHead + 1) & (GP0_FIFO_CAPACITY_WORDS - 1);
+            gp0IngressHead = (gp0IngressHead + 1) & (gp0IngressFifo.length - 1);
             gp0IngressSize--;
             updateGp0FifoCount();
             if (cpuToVramTransfer) {
@@ -426,7 +424,21 @@ public final class Gpu implements DmaPort {
     }
 
     private void updateGp0FifoCount() {
-        gp0FifoWords = gp0IngressSize;
+        gp0FifoWords = Math.min(gp0IngressSize, GP0_FIFO_CAPACITY_WORDS);
+    }
+
+    private void ensureGp0IngressCapacity() {
+        if (gp0IngressSize < gp0IngressFifo.length) {
+            return;
+        }
+        int[] expanded = new int[Math.multiplyExact(gp0IngressFifo.length, 2)];
+        for (int i = 0; i < gp0IngressSize; i++) {
+            expanded[i] = gp0IngressFifo[
+                (gp0IngressHead + i) & (gp0IngressFifo.length - 1)
+            ];
+        }
+        gp0IngressFifo = expanded;
+        gp0IngressHead = 0;
     }
 
     public void dmaLinkedList(Bus bus, int baseAddress) {
@@ -3180,10 +3192,14 @@ public final class Gpu implements DmaPort {
         gp0IngressHead = 0;
         gp0IngressSize = 0;
         if (state.gp0IngressFifo != null) {
-            int count = Math.min(GP0_FIFO_CAPACITY_WORDS, state.gp0IngressFifo.length);
-            for (int i = 0; i < count; i++) {
-                gp0IngressFifo[i] = state.gp0IngressFifo[i];
+            int count = state.gp0IngressFifo.length;
+            while (gp0IngressFifo.length < count) {
+                gp0IngressFifo = Arrays.copyOf(
+                    gp0IngressFifo,
+                    Math.multiplyExact(gp0IngressFifo.length, 2)
+                );
             }
+            System.arraycopy(state.gp0IngressFifo, 0, gp0IngressFifo, 0, count);
             gp0IngressSize = count;
         }
         updateGp0FifoCount();
@@ -3439,7 +3455,9 @@ public final class Gpu implements DmaPort {
         if (cpuToVramTransfer) {
             return GP0_FIFO_CAPACITY_WORDS;
         }
-        return vramToCpuTransfer ? 0 : GP0_FIFO_CAPACITY_WORDS - gp0IngressSize;
+        return vramToCpuTransfer
+            ? 0
+            : Math.max(0, GP0_FIFO_CAPACITY_WORDS - gp0IngressSize);
     }
 
     private int[] words() {
@@ -3461,7 +3479,7 @@ public final class Gpu implements DmaPort {
         int[] result = new int[gp0IngressSize];
         for (int i = 0; i < gp0IngressSize; i++) {
             result[i] = gp0IngressFifo[
-                (gp0IngressHead + i) & (GP0_FIFO_CAPACITY_WORDS - 1)
+                (gp0IngressHead + i) & (gp0IngressFifo.length - 1)
             ];
         }
         return result;

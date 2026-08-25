@@ -709,7 +709,7 @@ class GpuCommandParserTest {
     }
 
     @Test
-    void renderCommandDropsDmaRequestUntilBusyCyclesDrain() {
+    void renderCommandBackpressuresDmaAndRetainsDirectWritesUntilBusyCyclesDrain() {
         Gpu gpu = new Gpu(new InterruptController());
         gpu.gp1(0x0400_0002);
 
@@ -733,7 +733,30 @@ class GpuCommandParserTest {
         assertEquals(1 << 25, gpu.status() & (1 << 25));
         assertEquals(1 << 26, gpu.status() & (1 << 26));
         assertEquals(1 << 28, gpu.status() & (1 << 28));
-        assertEquals(0, gpu.status() & (1 << 24));
+        assertEquals(1 << 24, gpu.status() & (1 << 24));
+    }
+
+    @Test
+    void directGp0PacketRemainsAlignedAcrossLogicalFifoBoundary() {
+        Gpu gpu = new Gpu(new InterruptController());
+        gpu.gp0(0xE400_0000 | 100 | (100 << 10));
+
+        gpu.gp0(0x0200_0000);
+        gpu.gp0((400 << 16) | 400);
+        gpu.gp0(0x0004_0004);
+        for (int i = 0; i < 15; i++) {
+            gpu.gp0(0x0300_0000);
+        }
+
+        gpu.gp0(0x2000_00FF);
+        gpu.gp0(0x0000_0000);
+        gpu.gp0(0x0000_0010);
+        gpu.gp0(0x0010_0000);
+
+        gpu.tick(1_000);
+
+        assertEquals(0x001F, gpu.copyVram()[(2 * 1024) + 2] & 0xFFFF,
+            "direct GP0 writes must not lose packet parameters at FIFO backpressure");
     }
 
     @Test
