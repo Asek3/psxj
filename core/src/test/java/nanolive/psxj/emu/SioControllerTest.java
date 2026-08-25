@@ -106,6 +106,22 @@ final class SioControllerTest {
     }
 
     @Test
+    void dualShockReportsDpadAndAnalogSticksAsIndependentInputs() {
+        SioController sio = new SioController(new InterruptController());
+        configureRetailBus(sio);
+
+        exchange(sio, 0x01, 0x43, 0x00, 0x01, 0x00);
+        exchange(sio, 0x01, 0x44, 0x00, 0x01, 0x03, 0, 0, 0, 0);
+        exchange(sio, 0x01, 0x43, 0x00, 0x00, 0, 0, 0, 0, 0);
+
+        sio.setControllerState(0, 0x20, 0xE0, 0x40, 0xC0);
+
+        assertArrayEquals(
+            new int[] {0xFF, 0x73, 0x5A, 0xFF, 0xFF, 0x40, 0xC0, 0x20, 0xE0},
+            exchange(sio, 0x01, 0x42, 0, 0, 0, 0, 0, 0, 0));
+    }
+
+    @Test
     void dualShockRumbleMapDrivesBothHostMotors() {
         SioController sio = new SioController(new InterruptController());
         configureRetailBus(sio);

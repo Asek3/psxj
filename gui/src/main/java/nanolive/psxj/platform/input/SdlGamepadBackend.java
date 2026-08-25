@@ -136,7 +136,6 @@ public final class SdlGamepadBackend implements GamepadBackend {
         int leftY = SDL_GetGamepadAxis(handle, SDL_GAMEPAD_AXIS_LEFTY);
         int rightX = SDL_GetGamepadAxis(handle, SDL_GAMEPAD_AXIS_RIGHTX);
         int rightY = SDL_GetGamepadAxis(handle, SDL_GAMEPAD_AXIS_RIGHTY);
-        mask = applyStickDpad(mask, leftX, leftY);
         if (SDL_GetGamepadAxis(handle, SDL_GAMEPAD_AXIS_LEFT_TRIGGER) > deadZone) {
             mask |= SioController.PAD_L2;
         }
@@ -173,7 +172,6 @@ public final class SdlGamepadBackend implements GamepadBackend {
         int leftY = axis(handle, axes, 1);
         int rightX = axis(handle, axes, 2);
         int rightY = axis(handle, axes, 3);
-        mask = applyStickDpad(mask, leftX, leftY);
         if (SDL_GetNumJoystickHats(handle) > 0) {
             int hat = Byte.toUnsignedInt(SDL_GetJoystickHat(handle, 0));
             if ((hat & SDL_HAT_UP) != 0) mask |= SioController.PAD_UP;
@@ -196,14 +194,6 @@ public final class SdlGamepadBackend implements GamepadBackend {
 
     private int joystickButton(int mask, int buttonCount, int button, int padMask) {
         return button < buttonCount && SDL_GetJoystickButton(handle, button) ? mask | padMask : mask;
-    }
-
-    private int applyStickDpad(int mask, int x, int y) {
-        if (x < -deadZone) mask |= SioController.PAD_LEFT;
-        if (x > deadZone) mask |= SioController.PAD_RIGHT;
-        if (y < -deadZone) mask |= SioController.PAD_UP;
-        if (y > deadZone) mask |= SioController.PAD_DOWN;
-        return mask;
     }
 
     private int applyDeadZone(int value) {
