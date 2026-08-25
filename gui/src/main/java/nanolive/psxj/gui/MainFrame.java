@@ -25,6 +25,7 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dialog;
 import java.awt.Dimension;
+import java.awt.FileDialog;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.KeyEventDispatcher;
@@ -55,7 +56,6 @@ import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
-import javax.swing.JFileChooser;
 import javax.swing.JDialog;
 import javax.swing.JFrame;
 import javax.swing.ImageIcon;
@@ -395,22 +395,22 @@ public final class MainFrame extends JFrame implements GameLibraryListener {
     }
 
     private void chooseBios() {
-        JFileChooser chooser = new JFileChooser();
-        chooser.setDialogTitle(I18n.tr("dialog.selectBios"));
-        chooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
-        if (chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
-            config.setBiosPath(chooser.getSelectedFile().toPath());
+        FileDialog dialog = new FileDialog(this, I18n.tr("dialog.selectBios"), FileDialog.LOAD);
+        dialog.setVisible(true);
+        if (dialog.getFile() != null) {
+            Path path = Path.of(dialog.getDirectory(), dialog.getFile());
+            config.setBiosPath(path);
             configManager.save(config);
             refreshUiState();
         }
     }
 
     private void addLibraryRoot() {
-        JFileChooser chooser = new JFileChooser();
-        chooser.setDialogTitle(I18n.tr("dialog.selectLibraryFolder"));
-        chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
-        if (chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
-            Path path = chooser.getSelectedFile().toPath();
+        FileDialog dialog = new FileDialog(this, I18n.tr("dialog.selectLibraryFolder"), FileDialog.LOAD);
+        dialog.setDirectory(System.getProperty("user.home"));
+        dialog.setVisible(true);
+        if (dialog.getDirectory() != null) {
+            Path path = Path.of(dialog.getDirectory());
             config.setLibraryRoots(concat(config.libraryRoots(), path));
             configManager.save(config);
             gameLibrary.scanAsync(config.libraryRoots());
