@@ -38,7 +38,7 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@67621b124fd2e251c5e8a0e6e3b91318f2287669 # v6.3.0
         with:
-          cache-provider: basic
+          cache-provider: enhanced
 
       - name: Verify release tag
         if: github.event_name == 'push'
@@ -95,7 +95,7 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@67621b124fd2e251c5e8a0e6e3b91318f2287669 # v6.3.0
         with:
-          cache-provider: basic
+          cache-provider: enhanced
 
       - name: Build platform JAR
         shell: bash

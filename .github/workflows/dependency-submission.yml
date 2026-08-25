@@ -41,6 +41,6 @@ jobs:
       - name: Generate and submit dependency graph
         uses: gradle/actions/dependency-submission@67621b124fd2e251c5e8a0e6e3b91318f2287669 # v6.3.0
         with:
-          cache-provider: basic
+          cache-provider: enhanced
           dependency-graph: generate-and-submit
           dependency-graph-continue-on-failure: false
